@@ -86,6 +86,9 @@ body {
   font-family: "IBM Plex Sans", "Inter", system-ui, sans-serif;
   line-height: 1.65;
   min-height: 100vh;
+  /* Ensure content always starts below the top navigation. This is a global fallback
+     for any pages or components that are not wrapped by the shared PageShell/Main container. */
+  padding-top: var(--spacing-topnav);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */
