@@ -24,7 +24,7 @@ export function TopBar({ title, description, actions }: TopBarProps) {
   const unread = NOTIFICATIONS.filter((n) => !n.read).length
 
   return (
-    <header className="h-14 fixed top-0 left-[240px] right-0 z-30 flex items-center px-6 gap-4 bg-[#0B0F14]/80 backdrop-blur-md border-b border-[#242C38]">
+    <header className="h-14 fixed top-0 left-[var(--layout-sidebar-w)] right-0 z-30 flex items-center px-6 gap-4 bg-[#0B0F14]/80 backdrop-blur-md border-b border-[#242C38]">
       {/* Page title */}
       <div className="flex-1 min-w-0">
         <h1 className="text-sm font-semibold text-white leading-tight">{title}</h1>

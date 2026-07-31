@@ -1,36 +1,97 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { PageShell } from '@/components/layout/PageShell'
+import { useState, useCallback } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { TopNav } from '@/components/layout/TopNav'
+import { AppFooter } from '@/components/layout/AppFooter'
 import { LandingPage } from '@/pages/LandingPage'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { TeamPage } from '@/pages/TeamPage'
-import { GoalsPage } from '@/pages/GoalsPage'
-import { ReportsPage } from '@/pages/ReportsPage'
-import { SettingsPage } from '@/pages/SettingsPage'
+import { ProcessingScreen } from '@/pages/ProcessingScreen'
+import { WorkspacePage } from '@/pages/WorkspacePage'
+import { RecoveryPlannerPage } from '@/pages/RecoveryPlannerPage'
+import { ExecutiveReportPage } from '@/pages/ExecutiveReportPage'
+import type { Screen, DroppedFile } from '@/types/ledger'
+
+const PAGE_TRANSITION = {
+  initial:    { opacity: 0, y: 12 },
+  animate:    { opacity: 1,  y: 0  },
+  exit:       { opacity: 0, y: -8  },
+  transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+}
 
 function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Landing — no sidebar shell */}
-        <Route path="/" element={<LandingPage />} />
+  const [screen, setScreen] = useState<Screen>('home')
+  const [githubConnected, setGithubConnected] = useState(false)
 
-        {/* App shell — sidebar + topbar */}
-        <Route
-          path="/*"
-          element={
-            <PageShell>
-              <Routes>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/team" element={<TeamPage />} />
-                <Route path="/goals" element={<GoalsPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Routes>
-            </PageShell>
-          }
+  const handleUpload = useCallback((_files: DroppedFile[]) => {
+    setScreen('processing')
+  }, [])
+
+  const handleProcessingComplete = useCallback(() => {
+    setScreen('workspace')
+  }, [])
+
+  const handleConnectGithub = useCallback(() => {
+    setGithubConnected((v) => !v)
+  }, [])
+
+  const handleNavigate = useCallback((dest: string) => {
+    // Only navigate to screens that have content
+    const valid: Screen[] = ['home', 'workspace', 'recovery', 'report']
+    if (valid.includes(dest as Screen)) {
+      setScreen(dest as Screen)
+    }
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-[#090D12] text-white overflow-x-hidden">
+      {/* Sticky top nav — hidden during processing */}
+      {screen !== 'processing' && (
+        <TopNav
+          currentScreen={screen}
+          onNavigate={handleNavigate}
+          githubConnected={githubConnected}
+          onConnectGithub={handleConnectGithub}
         />
-      </Routes>
-    </BrowserRouter>
+      )}
+
+      {/* Page content — animated transitions */}
+      <AnimatePresence mode="wait">
+        {screen === 'home' && (
+          <motion.div key="home" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
+            <LandingPage
+              onUpload={handleUpload}
+              githubConnected={githubConnected}
+              onConnectGithub={handleConnectGithub}
+            />
+          </motion.div>
+        )}
+
+        {screen === 'processing' && (
+          <motion.div key="processing" {...PAGE_TRANSITION}>
+            <ProcessingScreen onComplete={handleProcessingComplete} />
+          </motion.div>
+        )}
+
+        {screen === 'workspace' && (
+          <motion.div key="workspace" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
+            <WorkspacePage />
+          </motion.div>
+        )}
+
+        {screen === 'recovery' && (
+          <motion.div key="recovery" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
+            <RecoveryPlannerPage />
+          </motion.div>
+        )}
+
+        {screen === 'report' && (
+          <motion.div key="report" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
+            <ExecutiveReportPage />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer — shown on content screens */}
+      {screen !== 'processing' && <AppFooter />}
+    </div>
   )
 }
 

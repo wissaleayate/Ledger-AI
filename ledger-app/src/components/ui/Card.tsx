@@ -25,8 +25,8 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
           whileHover={{ y: -1, backgroundColor: '#202838' }}
           transition={{ duration: 0.15 }}
           className={cn(
-            'bg-[#1B222D] rounded-lg cursor-pointer',
-            border && 'border border-[#242C38]',
+            'bg-[var(--color-card)] rounded-lg cursor-pointer',
+            border && 'border border-[var(--color-border)]',
             paddingClasses[padding],
             className
           )}
@@ -41,9 +41,9 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          'bg-[#1B222D] rounded-lg',
-          border && 'border border-[#242C38]',
-          hover && 'transition-colors duration-150 hover:bg-[#202838]',
+          'bg-[var(--color-card)] rounded-lg',
+          border && 'border border-[var(--color-border)]',
+          hover && 'transition-colors duration-150 hover:bg-[var(--color-card-hover)]',
           paddingClasses[padding],
           className
         )}

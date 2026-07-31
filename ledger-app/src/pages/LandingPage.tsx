@@ -1,1042 +1,558 @@
 import { useState, useCallback, useRef } from 'react'
-import { NavLink } from 'react-router-dom'
-import { motion, AnimatePresence, useInView } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Zap, Upload, GitBranch, FileText, File, FileCode,
-  CheckCircle2, Sparkles, X, Shield, Brain, GitMerge,
-  ClipboardList, TrendingUp, ArrowRight, ChevronRight,
+  Upload, FileText, FileCode, File, X,
+  GitFork, ChevronRight, ArrowDown
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DroppedFile {
-  id: string
-  name: string
-  size: number
-  type: string
-}
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
+import { Container } from '@/components/layout/Container'
+import { Section } from '@/components/layout/Section'
+import type { DroppedFile } from '@/types/ledger'
 
 const ACCEPTED_EXTENSIONS = ['.txt', '.pdf', '.docx', '.md']
-const ACCEPTED_MIME = [
-  'text/plain',
-  'application/pdf',
+const ACCEPTED_MIME = ['text/plain', 'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/markdown',
-  'text/x-markdown',
-]
-
-const NAV_LINKS = [
-  { id: 'projects',    label: 'Projects',       path: '/projects' },
-  { id: 'sprint',      label: 'Current Sprint', path: '/goals' },
-  { id: 'commitments', label: 'Commitments',    path: '/commitments' },
-  { id: 'evidence',    label: 'Evidence',       path: '/evidence' },
-  { id: 'insights',    label: 'Insights',       path: '/reports' },
-  { id: 'settings',    label: 'Settings',       path: '/settings' },
-]
+  'text/markdown', 'text/x-markdown']
 
 const FILE_TYPES = [
-  { icon: FileText, color: '#A8B3C5', bg: 'rgba(168,179,197,0.08)', border: 'rgba(168,179,197,0.15)', label: '.txt'  },
-  { icon: File,     color: '#F87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.2)',  label: '.pdf'  },
-  { icon: FileCode, color: '#A78BFA', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.2)', label: '.md'   },
-  { icon: FileText, color: '#60A5FA', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)',  label: '.docx' },
-] as const
+  { ext: 'TXT',  color: '#B4BFCE' },
+  { ext: 'PDF',  color: '#0F62FE' },
+  { ext: 'DOCX', color: '#4589FF' },
+  { ext: 'MD',   color: '#8A3FFC' },
+]
 
-const WORKFLOW_STEPS = [
+const PIPELINE_STEPS = [
   {
-    id: 'upload',
-    icon: Upload,
+    step: '01',
     label: 'Upload Meeting Notes',
-    description: 'Drop standup notes, sprint reviews, or retrospectives — any unstructured text works.',
-    state: 'done' as const,
-    number: '01',
+    sub: 'Standup notes, sprint reviews, team syncs',
+    color: '#0F62FE',
+    done: false,
+    current: true,
   },
   {
-    id: 'granite',
-    icon: Brain,
+    step: '02',
     label: 'IBM Granite Extraction',
-    description: 'Granite AI parses commitments, owners, and deadlines with enterprise-grade accuracy.',
-    state: 'active' as const,
-    number: '02',
+    sub: 'AI parses and extracts commitments with confidence scores',
+    color: '#8A3FFC',
+    done: false,
+    current: false,
   },
   {
-    id: 'github',
-    icon: GitMerge,
+    step: '03',
     label: 'GitHub Verification',
-    description: 'Every commitment is cross-referenced against real commits, PRs, and issue history.',
-    state: 'pending' as const,
-    number: '03',
+    sub: 'Every commitment cross-referenced against real evidence',
+    color: '#1192E8',
+    done: false,
+    current: false,
   },
   {
-    id: 'recovery',
-    icon: TrendingUp,
+    step: '04',
     label: 'AI Recovery Planner',
-    description: 'Ledger surfaces blockers and proposes recovery paths before deadlines slip.',
-    state: 'pending' as const,
-    number: '04',
+    sub: 'Granite generates realistic recovery strategies',
+    color: '#F1C21B',
+    done: false,
+    current: false,
   },
   {
-    id: 'report',
-    icon: ClipboardList,
+    step: '05',
     label: 'Executive Report',
-    description: 'A concise, evidence-backed report delivered to leadership automatically.',
-    state: 'pending' as const,
-    number: '05',
+    sub: 'Export-ready report with full audit trail',
+    color: '#24A148',
+    done: false,
+    current: false,
   },
 ]
 
-const TRUST_CARDS = [
+const FEATURE_CARDS = [
   {
-    icon: Brain,
-    color: '#60A5FA',
-    bg: 'rgba(96,165,250,0.07)',
-    border: 'rgba(96,165,250,0.15)',
-    title: 'AI Extraction',
-    description:
-      'IBM Granite extracts structured commitments, owners, and deadlines from unstructured standup notes using enterprise-grade LLMs.',
-    label: 'Powered by IBM Granite',
+    tag: 'AI Extraction',
+    title: 'IBM Granite extracts commitments using structured AI',
+    body: 'No manual entry. Upload your standup notes and Granite identifies every commitment, owner, deadline, and priority automatically.',
+    color: '#8A3FFC',
+    bg: 'rgba(138, 63, 252, 0.055)',
+    border: 'rgba(138, 63, 252, 0.18)',
+    icon: '◈',
   },
   {
-    icon: GitBranch,
-    color: '#34D399',
-    bg: 'rgba(52,211,153,0.07)',
-    border: 'rgba(52,211,153,0.15)',
-    title: 'Evidence Verification',
-    description:
-      'Every AI recommendation is backed by real GitHub evidence — commits, pull requests, and issue history — not assumptions.',
-    label: 'GitHub native',
+    tag: 'Evidence Verification',
+    title: 'Every recommendation is backed by GitHub evidence',
+    body: 'Ledger connects to your repositories and verifies claims against real commits, pull requests, and activity timelines — not estimations.',
+    color: '#1192E8',
+    bg: 'rgba(17, 146, 232, 0.055)',
+    border: 'rgba(17, 146, 232, 0.18)',
+    icon: '◉',
   },
   {
-    icon: TrendingUp,
-    color: '#A78BFA',
-    bg: 'rgba(167,139,250,0.07)',
-    border: 'rgba(167,139,250,0.15)',
-    title: 'Recovery Planner',
-    description:
-      'Ledger AI suggests targeted recovery plans before deadlines are missed, giving teams time to course-correct with confidence.',
-    label: 'Proactive AI',
+    tag: 'Recovery Planner',
+    title: 'AI generates realistic recovery plans before deadlines are missed',
+    body: 'When risks are detected, Granite crafts actionable recovery strategies with ownership reassignment, timeline adjustments, and escalation paths.',
+    color: '#24A148',
+    bg: 'rgba(36, 161, 72, 0.055)',
+    border: 'rgba(36, 161, 72, 0.18)',
+    icon: '◆',
   },
 ]
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function getFileIcon(name: string) {
   const ext = name.split('.').pop()?.toLowerCase()
-  if (ext === 'pdf')  return <File size={14} style={{ color: '#F87171' }} />
-  if (ext === 'md')   return <FileCode size={14} style={{ color: '#A78BFA' }} />
-  if (ext === 'docx') return <FileText size={14} style={{ color: '#60A5FA' }} />
-  return <FileText size={14} style={{ color: '#A8B3C5' }} />
+  if (ext === 'pdf') return <FileText size={15} className="text-[#0F62FE]" />
+  if (ext === 'md') return <FileCode size={15} className="text-[#8A3FFC]" />
+  return <File size={15} className="text-[#B4BFCE]" />
 }
 
 function isAccepted(file: File): boolean {
-  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-  return ACCEPTED_EXTENSIONS.includes(ext) || ACCEPTED_MIME.includes(file.type)
+  const nameLower = file.name.toLowerCase()
+  const extOk = ACCEPTED_EXTENSIONS.some((e) => nameLower.endsWith(e))
+  const mimeOk = ACCEPTED_MIME.includes(file.type)
+  return extOk || mimeOk
 }
 
-// ─── Motion presets ───────────────────────────────────────────────────────────
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 32 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true },
+  transition: { duration: 0.65, delay, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+})
 
-function fadeUp(delay = 0, y = 24) {
-  return {
-    initial:    { opacity: 0, y },
-    animate:    { opacity: 1, y: 0 },
-    transition: { duration: 0.55, ease: 'easeOut' as const, delay },
-  }
+interface LandingPageProps {
+  onUpload: (files: DroppedFile[]) => void
+  githubConnected: boolean
+  onConnectGithub: () => void
 }
 
-// ─── Navigation ───────────────────────────────────────────────────────────────
-
-function LandingNav() {
-  return (
-    <>
-      {/* Accessibility: skip to main content */}
-      <a href="#hero" className="skip-link">Skip to main content</a>
-
-      <motion.header
-        role="banner"
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
-        className="fixed top-0 inset-x-0 z-50 h-[60px] flex items-center
-                   px-5 sm:px-8 lg:px-12
-                   bg-[#0B0F14]/90 backdrop-blur-2xl
-                   border-b border-white/[0.05]"
-      >
-        {/* Logo */}
-        <NavLink
-          to="/"
-          aria-label="Ledger — home"
-          className="flex items-center gap-2.5 shrink-0 mr-8 group
-                     focus-visible:outline-none focus-visible:ring-2
-                     focus-visible:ring-[#0F62FE] focus-visible:ring-offset-2
-                     focus-visible:ring-offset-[#0B0F14] rounded-md"
-        >
-          <div
-            aria-hidden
-            className="w-[30px] h-[30px] rounded-[7px] bg-[#0F62FE] flex items-center justify-center
-                       shadow-[0_0_18px_rgba(15,98,254,0.45)]
-                       group-hover:shadow-[0_0_28px_rgba(15,98,254,0.65)]
-                       transition-shadow duration-300"
-          >
-            <Zap size={14} className="text-white" fill="white" />
-          </div>
-          <span className="text-[15px] font-semibold text-white tracking-[-0.025em] leading-none">
-            Ledger
-          </span>
-        </NavLink>
-
-        {/* Primary nav */}
-        <nav aria-label="Primary navigation" className="hidden lg:flex items-center gap-0.5 flex-1">
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.id}
-              to={link.path}
-              className={({ isActive }) =>
-                cn(
-                  'px-3 py-1.5 rounded-[6px] text-[13px] font-medium',
-                  'transition-all duration-150 leading-none',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F62FE]',
-                  isActive
-                    ? 'text-white bg-[rgba(15,98,254,0.14)] shadow-[inset_0_0_0_1px_rgba(15,98,254,0.28)]'
-                    : 'text-[#5A6478] hover:text-[#C8D1DF] hover:bg-white/[0.04]'
-                )
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* Right: auth actions */}
-        <div className="flex items-center gap-2 ml-auto shrink-0">
-          <NavLink
-            to="/signin"
-            className="hidden sm:inline-flex items-center px-3.5 py-1.5 rounded-[6px]
-                       text-[13px] font-medium text-[#8A96A8]
-                       hover:text-white hover:bg-white/[0.05]
-                       transition-all duration-150 leading-none
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F62FE]"
-          >
-            Sign in
-          </NavLink>
-
-          <motion.a
-            href="#hero"
-            whileHover={{ boxShadow: '0 0 22px rgba(15,98,254,0.5)' }}
-            whileTap={{ scale: 0.96 }}
-            className="inline-flex items-center gap-1.5 px-4 py-[7px]
-                       text-[13px] font-semibold text-white
-                       bg-[#0F62FE] hover:bg-[#0353E9]
-                       rounded-[7px] border border-[#0F62FE]/80
-                       transition-colors duration-150 leading-none cursor-pointer
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white
-                       focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F62FE]"
-          >
-            Get started
-            <ChevronRight size={12} strokeWidth={2.5} />
-          </motion.a>
-        </div>
-      </motion.header>
-    </>
-  )
-}
-
-// ─── Upload Zone ──────────────────────────────────────────────────────────────
-
-interface UploadZoneProps {
-  files: DroppedFile[]
-  onFiles: (files: DroppedFile[]) => void
-  onRemove: (id: string) => void
-}
-
-function UploadZone({ files, onFiles, onRemove }: UploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [rejected, setRejected]     = useState<string[]>([])
+export function LandingPage({ onUpload, githubConnected, onConnectGithub }: LandingPageProps) {
+  const [files, setFiles] = useState<DroppedFile[]>([])
+  const [dragging, setDragging] = useState(false)
+  const [dragRejected, setDragRejected] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
 
-  const processFiles = useCallback((raw: FileList | null) => {
-    if (!raw) return
-    const accepted: DroppedFile[] = []
-    const bad: string[] = []
-    Array.from(raw).forEach((f) => {
-      if (isAccepted(f)) {
-        accepted.push({ id: crypto.randomUUID(), name: f.name, size: f.size, type: f.type })
-      } else {
-        bad.push(f.name)
-      }
+  const processFiles = useCallback((raw: File[]) => {
+    const accepted = raw.filter(isAccepted)
+    const rejected = raw.filter((f) => !isAccepted(f))
+    if (rejected.length > 0) { setDragRejected(true); setTimeout(() => setDragRejected(false), 1800) }
+    if (accepted.length === 0) return
+    const mapped: DroppedFile[] = accepted.map((f) => ({
+      id: `${f.name}-${f.size}-${Date.now()}`,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    }))
+    setFiles((prev) => {
+      const existing = new Set(prev.map((p) => p.id))
+      return [...prev, ...mapped.filter((m) => !existing.has(m.id))]
     })
-    if (accepted.length) onFiles(accepted)
-    if (bad.length) {
-      setRejected(bad)
-      setTimeout(() => setRejected([]), 4000)
-    }
-  }, [onFiles])
+  }, [])
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); setIsDragging(false); processFiles(e.dataTransfer.files)
-  }, [processFiles])
-  const onDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true) }
-  const onDragLeave = (e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false)
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault(); dragCounter.current++
+    setDragging(true)
   }
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); dragCounter.current--
+    if (dragCounter.current === 0) setDragging(false)
+  }
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault() }
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); dragCounter.current = 0; setDragging(false)
+    processFiles(Array.from(e.dataTransfer.files))
+  }
+  const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) processFiles(Array.from(e.target.files))
+    e.target.value = ''
+  }
+  const removeFile = (id: string) => setFiles((p) => p.filter((f) => f.id !== id))
+
+  const canAnalyze = files.length > 0
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="min-h-screen bg-[var(--color-bg)]">
 
-      {/* ── Drop target ── */}
-      <motion.div
-        role="button"
-        tabIndex={0}
-        aria-label="Upload area. Click or drag files here."
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() } }}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        whileHover={isDragging ? {} : {
-          borderColor: 'rgba(15,98,254,0.45)',
-          boxShadow: '0 0 0 1px rgba(15,98,254,0.15), 0 12px 48px rgba(0,0,0,0.45)',
-        }}
-        animate={{
-          borderColor: isDragging ? '#0F62FE' : 'rgba(255,255,255,0.07)',
-          backgroundColor: isDragging ? 'rgba(15,98,254,0.06)' : 'rgba(17,22,30,0.75)',
-          boxShadow: isDragging
-            ? '0 0 0 1px #0F62FE, 0 0 48px rgba(15,98,254,0.18)'
-            : '0 4px 32px rgba(0,0,0,0.4)',
-        }}
-        transition={{ duration: 0.18 }}
-        className="relative w-full rounded-2xl border border-dashed
-                   flex flex-col items-center justify-center gap-7
-                   py-14 px-8 cursor-pointer select-none overflow-hidden
-                   focus-visible:outline-none focus-visible:ring-2
-                   focus-visible:ring-[#0F62FE] focus-visible:ring-offset-2
-                   focus-visible:ring-offset-[#0B0F14]"
-        style={{ minHeight: '264px' }}
-      >
-        {/* Drag-active inner glow */}
-        <AnimatePresence>
-          {isDragging && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(15,98,254,0.1) 0%, transparent 70%)',
-              }}
-            />
-          )}
-        </AnimatePresence>
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
+      <section className="relative pt-[100px] pb-[80px] md:pt-[120px] md:pb-[100px] overflow-hidden">
 
-        <input
-          ref={inputRef}
-          id="file-upload"
-          type="file"
-          multiple
-          accept=".txt,.pdf,.docx,.md"
-          aria-label="Upload standup notes"
-          className="sr-only"
-          onChange={(e) => processFiles(e.target.files)}
-        />
-
-        {/* File-type icon cluster */}
-        <motion.div
-          animate={{ y: isDragging ? -8 : 0 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 20 }}
-          className="flex items-end gap-3"
-          aria-hidden
-        >
-          {FILE_TYPES.map((item, i) => (
-            <motion.div
-              key={item.label}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 + i * 0.07, duration: 0.35 }}
-              className="flex flex-col items-center gap-2"
-            >
-              <motion.div
-                whileHover={{ y: -4, scale: 1.08 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 18 }}
-                className="w-[46px] h-[46px] rounded-xl flex items-center justify-center border"
-                style={{ backgroundColor: item.bg, borderColor: item.border }}
-              >
-                <item.icon size={20} style={{ color: item.color }} />
-              </motion.div>
-              <span
-                className="text-[10px] font-mono tracking-wider leading-none"
-                style={{ color: item.color + '99' }}
-              >
-                {item.label}
-              </span>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Instruction copy */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AnimatePresence mode="wait">
-            {isDragging ? (
-              <motion.p
-                key="drop"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="text-[15px] font-semibold text-[#0F62FE] leading-snug"
-              >
-                Release to upload
-              </motion.p>
-            ) : (
-              <motion.p
-                key="idle"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="text-[15px] font-medium text-white/80 leading-snug"
-              >
-                Drag &amp; drop your standup&nbsp;notes
-              </motion.p>
-            )}
-          </AnimatePresence>
-
-          <p className="text-[13px] text-[#5A6478] leading-none">
-            or{' '}
-            <span
-              className="text-[#4D8FFF] font-medium underline underline-offset-2
-                         hover:text-[#7CB3FF] transition-colors"
-            >
-              browse files
-            </span>
-            <span className="mx-2 text-[#2E3848]">·</span>
-            <span className="font-mono text-[11px] text-[#3A4255] tracking-wide">.txt .pdf .docx .md</span>
-          </p>
+        {/* Background glow — two soft orbs */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[20%] left-1/2 -translate-x-1/2 -translate-y-1/2
+                          w-[900px] h-[560px] rounded-full
+                          bg-[rgba(15,98,254,0.045)] blur-[140px]" />
+          <div className="absolute top-[60%] left-[60%]
+                          w-[500px] h-[320px] rounded-full
+                          bg-[rgba(138,63,252,0.03)] blur-[120px]" />
         </div>
-      </motion.div>
 
-      {/* Rejection feedback */}
-      <AnimatePresence>
-        {rejected.length > 0 && (
-          <motion.div
-            role="alert"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <p className="text-[12px] text-[#F87171] px-1 py-1.5 flex items-center gap-1.5">
-              <X size={11} />
-              Unsupported file type: {rejected.join(', ')}
-            </p>
+        <Container className="relative z-10 flex flex-col items-center text-center">
+
+          {/* Eyebrow label */}
+          <motion.div {...fadeUp(0)}>
+            <div className="inline-flex items-center gap-2.5 px-5 py-2 bg-[rgba(15,98,254,0.08)]
+                            border border-[rgba(15,98,254,0.22)] rounded-full mb-10">
+              <span className="w-1.5 h-1.5 bg-[#0F62FE] rounded-full animate-pulse" />
+              <span className="text-[12px] font-semibold text-[#4589FF] tracking-widest font-mono uppercase">
+                Powered by IBM Granite
+              </span>
+            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Queued file list */}
-      <AnimatePresence initial={false}>
-        {files.map((f) => (
-          <motion.div
-            key={f.id}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22 }}
-            className="overflow-hidden"
+          {/* Main title */}
+          <motion.h1
+            {...fadeUp(0.08)}
+            className="text-gradient-hero text-[clamp(52px,10vw,112px)] font-light
+                       leading-[0.92] tracking-[-0.04em] mb-6 md:mb-8"
           >
+            Ledger
+          </motion.h1>
+
+          {/* Subtitle */}
+          <motion.p
+            {...fadeUp(0.15)}
+            className="text-[clamp(18px,2.8vw,30px)] font-light text-[#B4BFCE]
+                       leading-snug mb-4 md:mb-6 max-w-2xl px-2"
+          >
+            The AI co-worker that verifies work against reality.
+          </motion.p>
+
+          {/* Description */}
+          <motion.p
+            {...fadeUp(0.22)}
+            className="text-[14px] md:text-[16px] text-[#616E85] leading-relaxed max-w-xl mb-10 md:mb-16 px-2"
+          >
+            Upload standup notes. IBM Granite extracts commitments. GitHub verifies
+            evidence. Ledger generates recovery plans before deadlines are missed.
+          </motion.p>
+
+          {/* ── Upload zone ─────────────────────────────────────────── */}
+          <motion.div {...fadeUp(0.3)} className="w-full max-w-[680px]">
             <div
-              className="flex items-center gap-3 px-4 py-3 rounded-xl mt-0.5
-                         bg-[#141A22] border border-white/[0.06]
-                         hover:border-white/[0.1] transition-colors"
+              onDragEnter={onDragEnter}
+              onDragLeave={onDragLeave}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              onClick={() => inputRef.current?.click()}
+              className={cn(
+                'relative cursor-pointer rounded-2xl md:rounded-3xl border-2 border-dashed transition-all duration-300 px-4 py-10 sm:px-8 sm:py-12 md:px-12 md:py-14 group',
+                dragging
+                  ? 'upload-active scale-[1.015]'
+                  : dragRejected
+                  ? 'border-[#DA1E28] bg-[rgba(218,30,40,0.04)]'
+                  : 'border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.018)]'
+                    + ' hover:border-[rgba(255,255,255,0.2)] hover:bg-[rgba(255,255,255,0.028)]'
+              )}
             >
-              {getFileIcon(f.name)}
-              <span className="flex-1 text-[13px] text-white/85 truncate font-medium leading-none">
-                {f.name}
-              </span>
-              <span className="text-[11px] font-mono text-[#5A6478] shrink-0 leading-none tabular-nums">
-                {formatBytes(f.size)}
-              </span>
-              <button
-                aria-label={`Remove ${f.name}`}
-                onClick={(e) => { e.stopPropagation(); onRemove(f.id) }}
-                className="ml-1 p-1 rounded text-[#3A4255] hover:text-[#F87171]
-                           hover:bg-[#F87171]/10 transition-all shrink-0
-                           focus-visible:outline-none focus-visible:ring-2
-                           focus-visible:ring-[#F87171]"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      {/* IBM Granite tag */}
-      <p className="flex items-center justify-center gap-1.5 text-[11px] text-[#3A4255] pt-0.5 select-none">
-        <Sparkles size={9} className="text-[#8A3FFC]/70" aria-hidden />
-        Powered by IBM&nbsp;Granite for structured AI extraction.
-      </p>
-    </div>
-  )
-}
-
-// ─── Workflow Section ─────────────────────────────────────────────────────────
-
-function WorkflowStep({
-  step,
-  index,
-  isLast,
-}: {
-  step: typeof WORKFLOW_STEPS[0]
-  index: number
-  isLast: boolean
-}) {
-  const ref    = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-50px' })
-
-  const isDone   = step.state === 'done'
-  const isActive = step.state === 'active'
-
-  const iconBg     = isDone   ? 'rgba(52,211,153,0.1)'   : isActive ? 'rgba(15,98,254,0.12)' : 'rgba(255,255,255,0.03)'
-  const iconBorder = isDone   ? 'rgba(52,211,153,0.3)'   : isActive ? 'rgba(15,98,254,0.4)'  : 'rgba(255,255,255,0.06)'
-  const iconColor  = isDone   ? '#34D399'                : isActive ? '#60A5FA'               : '#3A4255'
-  const labelColor = isDone || isActive ? '#FFFFFF'      : '#4A5568'
-  const descColor  = isDone   ? '#94A3B8'                : isActive ? '#94A3B8'               : '#2D3748'
-  const numColor   = isDone   ? '#34D399'                : isActive ? '#3B82F6'               : '#2D3748'
-
-  return (
-    <div ref={ref} className="flex flex-col items-center">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.08 }}
-        className={cn(
-          'relative flex flex-col items-center text-center w-56 px-2',
-          'p-5 rounded-2xl border transition-colors duration-300',
-          isDone   ? 'bg-[rgba(52,211,153,0.04)] border-[rgba(52,211,153,0.12)]' :
-          isActive ? 'bg-[rgba(15,98,254,0.05)] border-[rgba(15,98,254,0.18)]' :
-                     'bg-transparent border-transparent'
-        )}
-      >
-        {/* Step number */}
-        <span
-          className="absolute top-3 right-3 text-[10px] font-mono font-bold tracking-widest leading-none"
-          style={{ color: numColor }}
-        >
-          {step.number}
-        </span>
-
-        {/* Icon */}
-        <motion.div
-          animate={isActive ? {
-            boxShadow: [
-              '0 0 0px rgba(15,98,254,0)',
-              '0 0 20px rgba(15,98,254,0.4)',
-              '0 0 10px rgba(15,98,254,0.2)',
-            ],
-          } : {}}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center border mb-4 shrink-0"
-          style={{ backgroundColor: iconBg, borderColor: iconBorder }}
-          aria-hidden
-        >
-          {isDone
-            ? <CheckCircle2 size={22} style={{ color: '#34D399' }} />
-            : <step.icon size={21} style={{ color: iconColor }} />
-          }
-        </motion.div>
-
-        <p className="text-[13px] font-semibold mb-2 leading-snug" style={{ color: labelColor }}>
-          {step.label}
-        </p>
-        <p className="text-[12px] leading-relaxed" style={{ color: descColor }}>
-          {step.description}
-        </p>
-
-        {isActive && (
-          <motion.span
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1
-                       bg-[rgba(15,98,254,0.1)] border border-[rgba(15,98,254,0.25)]
-                       rounded-full text-[10px] font-semibold text-[#60A5FA]
-                       tracking-wide uppercase"
-          >
-            <motion.span
-              animate={{ opacity: [1, 0.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-[5px] h-[5px] rounded-full bg-[#3B82F6] shrink-0"
-              aria-hidden
-            />
-            Processing
-          </motion.span>
-        )}
-      </motion.div>
-
-      {/* Connector arrow */}
-      {!isLast && (
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ delay: index * 0.08 + 0.25, duration: 0.3 }}
-          className="my-1 flex flex-col items-center gap-0"
-          aria-hidden
-        >
-          <div className={cn(
-            'w-px h-5',
-            isDone ? 'bg-gradient-to-b from-[rgba(52,211,153,0.4)] to-[rgba(52,211,153,0.15)]' : 'bg-[#1D2533]'
-          )} />
-          <ArrowRight
-            size={13}
-            strokeWidth={1.5}
-            className="rotate-90"
-            style={{ color: isDone ? 'rgba(52,211,153,0.5)' : '#2D3748' }}
-          />
-          <div className="w-px h-5 bg-[#1D2533]" />
-        </motion.div>
-      )}
-    </div>
-  )
-}
-
-function WorkflowSection() {
-  const ref    = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-40px' })
-
-  return (
-    <section
-      ref={ref}
-      aria-labelledby="workflow-heading"
-      className="relative py-36 px-6"
-    >
-      {/* Top divider */}
-      <div className="section-divider absolute top-0 inset-x-0" aria-hidden />
-
-      {/* Faint background bloom */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(15,98,254,0.04) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative max-w-3xl mx-auto flex flex-col items-center">
-        {/* Section label */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.45 }}
-          className="flex flex-col items-center gap-5 text-center mb-16"
-        >
-          <span
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5
-                       text-[10px] font-bold uppercase tracking-[0.14em]
-                       text-[#3B82F6] bg-[rgba(59,130,246,0.08)]
-                       border border-[rgba(59,130,246,0.2)] rounded-full"
-          >
-            <Sparkles size={9} aria-hidden />
-            How it works
-          </span>
-
-          <div>
-            <h2
-              id="workflow-heading"
-              className="text-[32px] lg:text-[40px] font-semibold text-white
-                         tracking-[-0.03em] leading-[1.1]"
-            >
-              From standup to evidence,
-            </h2>
-            <p className="text-[32px] lg:text-[40px] font-light text-[#4A5568]
-                          tracking-[-0.03em] leading-[1.1]">
-              in minutes — not days.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Step column */}
-        <div className="flex flex-col items-center w-full" role="list" aria-label="Workflow steps">
-          {WORKFLOW_STEPS.map((step, i) => (
-            <div key={step.id} role="listitem">
-              <WorkflowStep step={step} index={i} isLast={i === WORKFLOW_STEPS.length - 1} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ─── Trust Section ────────────────────────────────────────────────────────────
-
-function TrustSection() {
-  const ref    = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-40px' })
-
-  return (
-    <section
-      ref={ref}
-      aria-labelledby="trust-heading"
-      className="relative py-32 px-6 lg:px-12"
-    >
-      <div className="section-divider absolute top-0 inset-x-0" aria-hidden />
-
-      <div className="max-w-5xl mx-auto">
-        {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.45 }}
-          className="text-center mb-16"
-        >
-          <h2
-            id="trust-heading"
-            className="text-[30px] lg:text-[38px] font-semibold text-white
-                       tracking-[-0.03em] leading-tight mb-4"
-          >
-            Built for teams that ship.
-          </h2>
-          <p className="text-[16px] text-[#4A5568] max-w-md mx-auto leading-relaxed">
-            Ledger closes the gap between what teams say and what they deliver.
-          </p>
-        </motion.div>
-
-        {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-          {TRUST_CARDS.map((card, i) => (
-            <motion.article
-              key={card.title}
-              initial={{ opacity: 0, y: 28 }}
-              animate={inView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, ease: 'easeOut', delay: i * 0.1 }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              className="group relative flex flex-col gap-6 p-7 rounded-2xl
-                         border transition-all duration-300 cursor-default overflow-hidden"
-              style={{
-                background: card.bg,
-                borderColor: card.border,
-              }}
-            >
-              {/* Top shimmer line */}
-              <div
-                aria-hidden
-                className="absolute top-0 left-8 right-8 h-px opacity-70 rounded-full"
-                style={{
-                  background: `linear-gradient(90deg, transparent, ${card.color}50, transparent)`,
-                }}
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_EXTENSIONS.join(',')}
+                onChange={onFileInput}
+                className="hidden"
               />
 
-              {/* Header row */}
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border"
-                  style={{ backgroundColor: card.bg, borderColor: card.border }}
-                  aria-hidden
+              <div className="flex flex-col items-center gap-5">
+                {/* Upload icon */}
+                <motion.div
+                  animate={dragging ? { scale: 1.12, rotate: 4 } : { scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className={cn(
+                    'w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200',
+                    dragging
+                      ? 'bg-[rgba(15,98,254,0.2)] shadow-[0_0_24px_rgba(15,98,254,0.3)]'
+                      : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.09)]'
+                  )}
                 >
-                  <card.icon size={20} style={{ color: card.color }} />
+                  <Upload
+                    size={24}
+                    className={cn(
+                      'transition-colors duration-200',
+                      dragging
+                        ? 'text-[#0F62FE]'
+                        : 'text-[#616E85] group-hover:text-[#B4BFCE]'
+                    )}
+                  />
+                </motion.div>
+
+                {/* Text */}
+                <div className="text-center">
+                  <p className="text-[17px] font-medium text-white mb-2">
+                    {dragging ? 'Drop to upload' : 'Drop your meeting notes here'}
+                  </p>
+                  <p className="text-[14px] text-[#616E85]">
+                    or{' '}
+                    <span className="text-[#0F62FE] hover:text-[#4589FF] transition-colors cursor-pointer">
+                      browse files
+                    </span>
+                  </p>
                 </div>
-                <span
-                  className="text-[10px] font-semibold uppercase tracking-[0.1em] leading-none
-                             px-2 py-1 rounded-full border mt-1"
+
+                {/* File type badges */}
+                <div className="flex items-center gap-2.5 mt-1">
+                  {FILE_TYPES.map(({ ext, color }) => (
+                    <span
+                      key={ext}
+                      style={{ color, borderColor: color + '45', background: color + '14' }}
+                      className="px-3 py-1.5 text-[11px] font-mono font-semibold rounded-lg border tracking-wide"
+                    >
+                      {ext}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rejected error */}
+              {dragRejected && (
+                <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                  <span className="text-xs text-[#DA1E28] font-semibold">
+                    Unsupported file type
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* File list */}
+            <AnimatePresence>
+              {files.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-3 flex flex-col gap-2"
+                >
+                  {files.map((file) => (
+                    <motion.div
+                      key={file.id}
+                      initial={{ opacity: 0, x: -14 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 14 }}
+                      className="flex items-center gap-3 px-5 py-3.5 bg-[#171E28]
+                                 border border-[rgba(255,255,255,0.07)] rounded-2xl"
+                    >
+                      {getFileIcon(file.name)}
+                      <span className="flex-1 text-sm text-white truncate">{file.name}</span>
+                      <span className="text-xs text-[#616E85] font-mono">{formatBytes(file.size)}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeFile(file.id) }}
+                        className="text-[#3D4860] hover:text-[#DA1E28] transition-colors ml-1 p-0.5"
+                      >
+                        <X size={13} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* CTAs */}
+            <div className="mt-7 flex flex-col sm:flex-row items-center gap-3 justify-center">
+              <motion.button
+                whileHover={{ scale: 1.025 }}
+                whileTap={{ scale: 0.975 }}
+                onClick={() => canAnalyze && onUpload(files)}
+                disabled={!canAnalyze}
+                className={cn(
+                  'w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl text-[14px] font-semibold transition-all duration-200',
+                  canAnalyze
+                    ? 'bg-[#0F62FE] text-white btn-primary-glow hover:bg-[#0353E9]'
+                    : 'bg-[rgba(255,255,255,0.06)] text-[#3D4860] cursor-not-allowed'
+                )}
+              >
+                <Upload size={15} />
+                Analyze with Granite
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.025 }}
+                whileTap={{ scale: 0.975 }}
+                onClick={onConnectGithub}
+                className={cn(
+                  'w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl text-[14px] font-semibold border transition-all duration-200',
+                  githubConnected
+                    ? 'border-[rgba(36,161,72,0.35)] bg-[rgba(36,161,72,0.08)] text-[#24A148] hover:bg-[rgba(36,161,72,0.12)]'
+                    : 'border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.035)] text-[#B4BFCE]'
+                      + ' hover:border-[rgba(255,255,255,0.22)] hover:text-white'
+                )}
+              >
+                <GitFork size={15} />
+                {githubConnected ? 'GitHub Connected' : 'Connect GitHub'}
+              </motion.button>
+            </div>
+          </motion.div>
+        </Container>
+      </section>
+
+      {/* ── Section divider ─────────────────────────────────────────── */}
+      <Container>
+        <div className="section-divider" />
+      </Container>
+
+      {/* ── Pipeline ────────────────────────────────────────────────── */}
+      <Section variant="loose">
+        <Container>
+          {/* Section header */}
+          <motion.div {...fadeUp(0)} className="text-center mb-14">
+            <p className="text-[11px] font-mono text-[#616E85] uppercase tracking-[0.2em] mb-4">
+              How It Works
+            </p>
+            <h2 className="text-[clamp(32px,4.5vw,48px)] font-light text-white tracking-tight leading-tight">
+              Five steps. Zero guesswork.
+            </h2>
+          </motion.div>
+
+          {/* Steps */}
+          <div className="flex flex-col w-full">
+            {PIPELINE_STEPS.map((step, i) => (
+              <motion.div
+                key={step.step}
+                {...fadeUp(i * 0.08)}
+                className="relative"
+              >
+                {/* Connector line — between cards */}
+                {i > 0 && (
+                  <div className="flex justify-start pl-[27px] h-8 mb-0">
+                    <div className="w-px h-full bg-[rgba(255,255,255,0.06)] pipeline-line" />
+                  </div>
+                )}
+
+                <div
+                  className="relative flex items-center gap-6 px-8 py-7 bg-[#171E28]
+                             border border-[rgba(255,255,255,0.07)] rounded-2xl
+                             hover:border-[rgba(255,255,255,0.12)] transition-all duration-300 group"
+                  style={
+                    step.current
+                      ? { boxShadow: `0 0 0 1px ${step.color}45, 0 0 40px ${step.color}10` }
+                      : {}
+                  }
+                >
+                  {/* Step number badge */}
+                  <div
+                    className="w-[52px] h-[52px] rounded-2xl flex items-center justify-center
+                               text-[14px] font-mono font-semibold shrink-0"
+                    style={{
+                      background: step.color + '16',
+                      color: step.color,
+                      border: `1px solid ${step.color}35`,
+                    }}
+                  >
+                    {step.step}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-semibold text-white mb-1">{step.label}</p>
+                    <p className="text-[13px] text-[#616E85] leading-relaxed">{step.sub}</p>
+                  </div>
+
+                  <ChevronRight
+                    size={15}
+                    style={{ color: step.color + '70' }}
+                    className="group-hover:translate-x-0.5 transition-transform shrink-0"
+                  />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </Container>
+      </Section>
+
+      {/* ── Feature Cards ───────────────────────────────────────────── */}
+      <Section variant="loose">
+        <Container>
+
+          {/* Section header */}
+          <motion.div {...fadeUp(0)} className="text-center mb-14">
+            <p className="text-[11px] font-mono text-[#616E85] uppercase tracking-[0.2em] mb-4">
+              Capabilities
+            </p>
+            <h2 className="text-[clamp(32px,4.5vw,48px)] font-light text-white tracking-tight leading-tight">
+              Built for accountability at scale.
+            </h2>
+          </motion.div>
+
+          {/* Cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {FEATURE_CARDS.map((card, i) => (
+              <motion.div
+                key={card.tag}
+                {...fadeUp(i * 0.1)}
+                className="relative flex flex-col p-9 rounded-3xl border overflow-hidden
+                           cursor-default card-lift"
+                style={{ background: card.bg, borderColor: card.border }}
+              >
+                {/* Icon */}
+                <div
+                  className="text-[22px] mb-8 w-14 h-14 flex items-center justify-center rounded-2xl"
                   style={{
                     color: card.color,
-                    borderColor: card.border,
-                    backgroundColor: card.bg,
+                    background: card.color + '16',
+                    border: `1px solid ${card.color}32`,
                   }}
                 >
-                  {card.label}
-                </span>
-              </div>
+                  {card.icon}
+                </div>
 
-              {/* Body */}
-              <div className="flex flex-col gap-2.5 flex-1">
-                <h3
-                  className="text-[16px] font-semibold text-white tracking-[-0.02em] leading-snug"
+                {/* Tag */}
+                <span
+                  className="text-[11px] font-mono font-semibold uppercase tracking-[0.18em] mb-4"
+                  style={{ color: card.color }}
                 >
+                  {card.tag}
+                </span>
+
+                {/* Title */}
+                <h3 className="text-[18px] font-semibold text-white leading-snug mb-5">
                   {card.title}
                 </h3>
-                <p className="text-[13px] text-[#4A5568] leading-[1.65]">
-                  {card.description}
+
+                {/* Body */}
+                <p className="text-[14px] text-[#616E85] leading-[1.75] flex-1">
+                  {card.body}
                 </p>
-              </div>
-
-              {/* Footer CTA */}
-              <div className="pt-1 border-t border-white/[0.05] mt-auto">
-                <span
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium
-                             transition-colors duration-200"
-                  style={{ color: card.color + 'BB' }}
-                >
-                  Learn more
-                  <ChevronRight size={11} strokeWidth={2.5} aria-hidden />
-                </span>
-              </div>
-            </motion.article>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ─── Root Page ────────────────────────────────────────────────────────────────
-
-export function LandingPage() {
-  const [files, setFiles] = useState<DroppedFile[]>([])
-
-  const handleFiles = useCallback((incoming: DroppedFile[]) => {
-    setFiles((prev) => {
-      const existing = new Set(prev.map((f) => f.name))
-      return [...prev, ...incoming.filter((f) => !existing.has(f.name))]
-    })
-  }, [])
-
-  const removeFile = useCallback((id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id))
-  }, [])
-
-  return (
-    <div className="min-h-screen bg-[#0B0F14] flex flex-col overflow-x-hidden">
-      <LandingNav />
-
-      {/* ── Background layers (fixed, decorative) ── */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 select-none">
-        {/* Blue radial — top center */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse 90% 55% at 50% -5%, rgba(15,98,254,0.11) 0%, transparent 60%)',
-        }} />
-        {/* Purple accent — bottom right */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse 55% 45% at 85% 65%, rgba(139,92,246,0.06) 0%, transparent 65%)',
-        }} />
-        {/* Dot-grid texture */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.045) 1px, transparent 1px)',
-          backgroundSize: '30px 30px',
-        }} />
-        {/* Vignette — pulls focus to center */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, rgba(11,15,20,0.7) 100%)',
-        }} />
-      </div>
-
-      {/* ── Hero ── */}
-      <main
-        id="hero"
-        aria-label="Hero"
-        className="relative z-10 flex flex-col items-center justify-center
-                   min-h-[88vh] px-5 sm:px-8
-                   pt-[96px] pb-28"
-      >
-        {/* Eyebrow badge */}
-        <motion.div {...fadeUp(0)} className="mb-10">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2
-                       text-[11px] font-semibold uppercase tracking-[0.1em]
-                       text-[#5A6478] border border-white/[0.07] rounded-full
-                       bg-white/[0.03]"
-            role="note"
-            aria-label="Trust signals"
-          >
-            <Shield size={10} aria-hidden />
-            SOC 2 Type II
-            <span aria-hidden className="w-px h-3 bg-white/10 mx-0.5" />
-            <Zap size={10} className="text-[#3B82F6]" aria-hidden />
-            IBM Granite AI
-            <span aria-hidden className="w-px h-3 bg-white/10 mx-0.5" />
-            <CheckCircle2 size={10} className="text-[#34D399]" aria-hidden />
-            Zero-trust
-          </div>
-        </motion.div>
-
-        {/* Headline */}
-        <motion.h1
-          {...fadeUp(0.07)}
-          className="text-gradient-brand
-                     text-[76px] sm:text-[92px] lg:text-[104px]
-                     font-bold text-center
-                     leading-[0.93] tracking-[-0.05em]
-                     mb-8 max-w-3xl"
-        >
-          Ledger
-        </motion.h1>
-
-        {/* Subtitle — max contrast for readability */}
-        <motion.p
-          {...fadeUp(0.14)}
-          className="text-[20px] sm:text-[22px] lg:text-[24px]
-                     text-white/60 text-center font-light
-                     max-w-[480px] leading-[1.45] tracking-[-0.015em]
-                     mb-5"
-        >
-          The AI co-worker that verifies&nbsp;work against reality.
-        </motion.p>
-
-        {/* Supporting description */}
-        <motion.p
-          {...fadeUp(0.2)}
-          className="text-[15px] text-[#4A5568] text-center
-                     max-w-[400px] leading-[1.7] mb-14"
-        >
-          Upload today&apos;s standup notes or connect your GitHub&nbsp;repository
-          to verify commitments using IBM&nbsp;Granite&nbsp;AI.
-        </motion.p>
-
-        {/* CTA group */}
-        <motion.div
-          {...fadeUp(0.26)}
-          className="flex flex-col sm:flex-row items-center gap-3 mb-20"
-          role="group"
-          aria-label="Primary actions"
-        >
-          {/* Primary CTA */}
-          <motion.button
-            whileHover={{ boxShadow: '0 0 32px rgba(15,98,254,0.55)', scale: 1.015 }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.18 }}
-            aria-label="Upload meeting notes"
-            className="inline-flex items-center gap-2.5
-                       h-[46px] px-7 text-[14px] font-semibold
-                       bg-[#0F62FE] text-white
-                       rounded-[9px] border border-[#1570FF]
-                       hover:bg-[#0353E9] active:bg-[#024AD9]
-                       transition-colors duration-150 cursor-pointer
-                       focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-white focus-visible:ring-offset-2
-                       focus-visible:ring-offset-[#0F62FE]"
-          >
-            <Upload size={15} strokeWidth={2.2} aria-hidden />
-            Upload Meeting Notes
-          </motion.button>
-
-          {/* Secondary CTA */}
-          <motion.button
-            whileHover={{ borderColor: 'rgba(255,255,255,0.2)', color: '#FFFFFF', scale: 1.015 }}
-            whileTap={{ scale: 0.97 }}
-            transition={{ duration: 0.18 }}
-            aria-label="Connect GitHub repository"
-            className="inline-flex items-center gap-2.5
-                       h-[46px] px-7 text-[14px] font-medium
-                       bg-white/[0.04] text-white/70
-                       rounded-[9px] border border-white/[0.09]
-                       hover:bg-white/[0.07]
-                       transition-all duration-150 cursor-pointer
-                       focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-[#0F62FE] focus-visible:ring-offset-2
-                       focus-visible:ring-offset-[#0B0F14]"
-          >
-            <GitBranch size={15} strokeWidth={2} aria-hidden />
-            Connect GitHub Repository
-          </motion.button>
-        </motion.div>
-
-        {/* Divider */}
-        <motion.div
-          {...fadeUp(0.32)}
-          className="w-full max-w-[560px] flex items-center gap-5 mb-10"
-          aria-hidden
-        >
-          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-white/[0.07]" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#2D3748] shrink-0 leading-none">
-            or drop a file below
-          </span>
-          <div className="flex-1 h-px bg-gradient-to-l from-transparent via-white/[0.07] to-white/[0.07]" />
-        </motion.div>
-
-        {/* Upload zone */}
-        <motion.div
-          {...fadeUp(0.38)}
-          className="w-full max-w-[560px]"
-        >
-          <UploadZone files={files} onFiles={handleFiles} onRemove={removeFile} />
-        </motion.div>
-
-        {/* Analyse CTA — appears when files are queued */}
-        <AnimatePresence>
-          {files.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.22 }}
-              className="mt-3 w-full max-w-[560px]"
-            >
-              <motion.button
-                whileHover={{ boxShadow: '0 0 32px rgba(15,98,254,0.55)' }}
-                whileTap={{ scale: 0.985 }}
-                aria-label={`Analyse ${files.length} file${files.length !== 1 ? 's' : ''} with Granite AI`}
-                className="w-full inline-flex items-center justify-center gap-2.5
-                           h-[46px] text-[14px] font-semibold
-                           bg-[#0F62FE] text-white
-                           rounded-[9px] border border-[#1570FF]
-                           hover:bg-[#0353E9] transition-colors duration-150
-                           cursor-pointer
-                           focus-visible:outline-none focus-visible:ring-2
-                           focus-visible:ring-white focus-visible:ring-offset-2
-                           focus-visible:ring-offset-[#0F62FE]"
-              >
-                <Sparkles size={15} aria-hidden />
-                Analyse {files.length} file{files.length !== 1 ? 's' : ''} with Granite AI
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      {/* ── Workflow ── */}
-      <WorkflowSection />
-
-      {/* ── Trust cards ── */}
-      <TrustSection />
-
-      {/* ── Footer ── */}
-      <footer
-        role="contentinfo"
-        className="relative z-10 border-t border-white/[0.05]
-                   px-6 sm:px-10 lg:px-14 py-6"
-      >
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          {/* Brand */}
-          <div className="flex items-center gap-2.5">
-            <div
-              aria-hidden
-              className="w-[22px] h-[22px] rounded-[5px] bg-[#0F62FE] flex items-center justify-center
-                         shadow-[0_0_10px_rgba(15,98,254,0.35)]"
-            >
-              <Zap size={10} className="text-white" fill="white" />
-            </div>
-            <span className="text-[13px] font-medium text-[#3A4255]">
-              © 2026 Ledger, Inc.
-            </span>
-          </div>
-
-          {/* Links */}
-          <nav aria-label="Footer navigation" className="flex items-center gap-6">
-            {['Privacy', 'Terms', 'Security', 'Docs', 'Status'].map((label) => (
-              <a
-                key={label}
-                href="#"
-                className="text-[12px] text-[#3A4255] hover:text-[#8A96A8]
-                           transition-colors duration-150
-                           focus-visible:outline-none focus-visible:ring-2
-                           focus-visible:ring-[#0F62FE] rounded"
-              >
-                {label}
-              </a>
+              </motion.div>
             ))}
-          </nav>
-        </div>
-      </footer>
+          </div>
+        </Container>
+      </Section>
+
+      {/* ── Footer CTA ──────────────────────────────────────────────── */}
+      <Section variant="loose">
+        <Container>
+          <motion.div
+          {...fadeUp(0)}
+          className="w-full text-center
+                     px-6 py-12 sm:px-12 sm:py-16 md:px-16 md:py-24 bg-[#111720]
+                     border border-[rgba(255,255,255,0.07)] rounded-2xl md:rounded-3xl
+                     shadow-[0_32px_80px_rgba(0,0,0,0.45)]"
+        >
+          <p className="text-[11px] font-mono text-[#616E85] uppercase tracking-[0.2em] mb-6">
+            Get Started
+          </p>
+          <h2 className="text-[clamp(24px,4vw,44px)] font-light text-white tracking-tight
+                         leading-tight mb-5">
+            Your team said it.{' '}
+            <br className="hidden sm:block" />
+            <span className="text-gradient-blue">Ledger will verify it.</span>
+          </h2>
+          <p className="text-[14px] md:text-[15px] text-[#616E85] mb-8 md:mb-12 leading-relaxed max-w-md mx-auto">
+            Drop your standup notes above and let Granite go to work.
+          </p>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="inline-flex items-center gap-2.5 px-7 sm:px-10 py-3.5 sm:py-4 bg-[#0F62FE] text-white
+                       text-[14px] font-semibold rounded-2xl hover:bg-[#0353E9] transition-all
+                       duration-200 btn-primary-glow"
+          >
+            <Upload size={15} />
+            Upload Notes Now
+          </button>
+        </motion.div>
+        </Container>
+      </Section>
+
     </div>
   )
 }
