@@ -52,42 +52,44 @@ function App() {
         />
       )}
 
-      {/* Page content — animated transitions */}
-      <AnimatePresence mode="wait">
-        {screen === 'home' && (
-          <motion.div key="home" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
-            <LandingPage
-              onUpload={handleUpload}
-              githubConnected={githubConnected}
-              onConnectGithub={handleConnectGithub}
-            />
-          </motion.div>
-        )}
+      {/* Page content — animated transitions. Wrapped in a single top-padding so content never sits under TopNav */}
+      <main className="pt-[var(--spacing-topnav)]">
+        <AnimatePresence mode="wait">
+          {screen === 'home' && (
+            <motion.div key="home" {...PAGE_TRANSITION}>
+              <LandingPage
+                onUpload={handleUpload}
+                githubConnected={githubConnected}
+                onConnectGithub={handleConnectGithub}
+              />
+            </motion.div>
+          )}
 
-        {screen === 'processing' && (
-          <motion.div key="processing" {...PAGE_TRANSITION}>
-            <ProcessingScreen onComplete={handleProcessingComplete} />
-          </motion.div>
-        )}
+          {screen === 'processing' && (
+            <motion.div key="processing" {...PAGE_TRANSITION}>
+              <ProcessingScreen onComplete={handleProcessingComplete} />
+            </motion.div>
+          )}
 
-        {screen === 'workspace' && (
-          <motion.div key="workspace" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
-            <WorkspacePage />
-          </motion.div>
-        )}
+          {screen === 'workspace' && (
+            <motion.div key="workspace" {...PAGE_TRANSITION}>
+              <WorkspacePage />
+            </motion.div>
+          )}
 
-        {screen === 'recovery' && (
-          <motion.div key="recovery" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
-            <RecoveryPlannerPage />
-          </motion.div>
-        )}
+          {screen === 'recovery' && (
+            <motion.div key="recovery" {...PAGE_TRANSITION}>
+              <RecoveryPlannerPage />
+            </motion.div>
+          )}
 
-        {screen === 'report' && (
-          <motion.div key="report" {...PAGE_TRANSITION} className="pt-[var(--spacing-topnav)]">
-            <ExecutiveReportPage />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {screen === 'report' && (
+            <motion.div key="report" {...PAGE_TRANSITION}>
+              <ExecutiveReportPage />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
       {/* Footer — shown on content screens */}
       {screen !== 'processing' && <AppFooter />}
