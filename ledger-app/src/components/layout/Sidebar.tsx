@@ -76,7 +76,7 @@ function SidebarContent({
   return (
     <div className="w-[var(--layout-sidebar-w)] bg-[#111720] border-r border-[#242C38] flex flex-col h-full">
       {/* Logo */}
-      <div className="h-14 flex items-center px-4 border-b border-[#242C38] shrink-0">
+      <div className="flex items-center px-4 border-b border-[#242C38]" style={{ height: 'var(--spacing-topnav)' }}>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-[4px] bg-[#0F62FE] flex items-center justify-center">
             <Zap size={14} className="text-white" fill="white" />
@@ -128,7 +128,7 @@ function SidebarContent({
               onClick={() => onNavigate?.(item.id)}
             />
           ))}
-          <button className="group flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-xs font-medium text-[#5A6478] hover:text-[#A8B3C5] hover:bg-[#141A22] transition-all duration-150 border border-transparent">
+          <button className="group flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-xs font-medium text-[#5A6478] hover:text-[#A8B3C5] hover:bg-[#141A22] transition-all duration-150 border-transparent">
             <HelpCircle size={15} />
             Help & Docs
           </button>

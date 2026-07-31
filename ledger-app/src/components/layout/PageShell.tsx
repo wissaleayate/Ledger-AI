@@ -7,12 +7,12 @@ interface PageShellProps {
 export function PageShell({ children }: PageShellProps) {
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
-      <main className="flex flex-col min-h-screen">
+      <main className="flex flex-col min-h-screen pt-[var(--spacing-topnav)] lg:pl-[var(--layout-sidebar-w)]">
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="flex-1"
+          className="flex-1 space-y-6"
         >
           {children}
         </motion.div>
