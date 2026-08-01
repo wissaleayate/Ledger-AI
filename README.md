@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ⚖️ Ledger — Commitment Reality Verifier
 
 **Tagline:** *The AI co-worker that checks whether commitments actually happened — not what an AI thinks about them.*
@@ -96,3 +97,6 @@ python run.py
 3. **Verify (90s)**: Open Tab 2, hit Ground Truth Verification against GitHub REST API, showing exact commit SHAs & merged PRs matching the commitments.
 4. **Health Score (60s)**: View Tab 3, highlight the arithmetic formula tooltip proving the score is not an LLM hallucination.
 5. **Actionable Output (60s)**: Open Tab 4 to showcase pre-scored AI standup agendas and single-click Slack nudge drafts.
+=======
+# Ledger-AI
+>>>>>>> 857d26e9c2b7f2a0d7a3c20f81840952783b1795
